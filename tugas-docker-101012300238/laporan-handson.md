@@ -1,46 +1,30 @@
-# LAPORAN PRAKTIKUM CLOUD COMPUTING
-## Modul 2: Hands-on Docker — Lifecycle Kontainer, Custom Dockerfile, dan Orkestrasi Docker Compose
+# Laporan Hands-on Docker — Cloud Computing
 
----
+Nama   : Rafhan Mazaya Fathurrahman
+NIM    : 101012300238
+Kelas  : BS1TT-47-REG-GAB01
+Dosen  : Cahyo Alhazim
+Repo   : https://github.com/fhanyuh/cloud-computing-docker-101012300238
 
-### Informasi Mahasiswa & Mata Kuliah
-- **Nama Mahasiswa** : Rafhan Mazaya Fathurrahman
-- **NIM**            : 101012300238
-- **Kelas**          : BS1TT-47-REG-GAB01
-- **Program Studi**  : S1 Teknik Telekomunikasi / Cloud Computing
-- **Dosen Pengampu** : Cahyo Alhazim
-- **Tautan Repositori**: [https://github.com/fhanyuh/cloud-computing-docker-101012300238](https://github.com/fhanyuh/cloud-computing-docker-101012300238)
+## Bagian 1 — Lifecycle Kontainer ubuntu:22.04
 
----
+### Perintah
 
-## 1. Pendahuluan
-
-Praktikum ini mengeksplorasi penggunaan Docker secara terapan dalam tiga skenario bertingkat:
-1. **Bagian 1 — Lifecycle Kontainer Dasar**: Mengamati proses pembuatan, eksekusi perintah interaktif, penghentian, dan penghapusan kontainer sistem operasi resmi (`ubuntu:22.04`).
-2. **Bagian 2 — Pembuatan Custom Image via Dockerfile**: Mengembangkan aplikasi web sederhana berbasis Python 3.11 yang membaca parameter identitas mahasiswa via variabel lingkungan (*environment variable*) dan membungkusnya ke dalam Docker image mandiri.
-3. **Bagian 3 — Orkestrasi Multi-Service dengan Docker Compose**: Mengorkestrasikan arsitektur multi-layanan yang terdiri atas service `web` (aplikasi Python) dan service `cache` (in-memory store Redis 7) dalam satu file konfigurasi deklaratif `docker-compose.yml`.
-
----
-
-## 2. Bagian 1: Lifecycle Kontainer Dasar (`ubuntu:22.04`)
-
-Pada bagian ini, dilakukan pengujian siklus hidup kontainer menggunakan image resmi Ubuntu 22.04 LTS dengan nama kontainer yang disesuaikan dengan NIM: `tes-ubuntu-101012300238`.
-
-### 2.1. Eksekusi Perintah di Dalam Kontainer Interaktif
-Kontainer dijalankan menggunakan perintah:
 ```bash
-docker run -i --name tes-ubuntu-101012300238 ubuntu:22.04 bash -c "cat /etc/os-release"
+docker run -i --name tes-ubuntu-101012300238 ubuntu:22.04 bash -c 'cat /etc/os-release'
 ```
 
-**Penjelasan Perintah**:
-- `docker run`: Menginstruksikan daemon untuk membuat dan menjalankan kontainer baru.
-- `-i` (*interactive*): Menjaga `STDIN` tetap terbuka meskipun kontainer tidak dialokasikan pseudo-TTY (`-t`).
-- `--name tes-ubuntu-101012300238`: Menetapkan nama spesifik pada kontainer untuk memudahkan identifikasi dan manajemen.
-- `ubuntu:22.04`: Image dasar yang diunduh dari repositori resmi Docker Hub.
-- `bash -c "cat /etc/os-release"`: Perintah awal (*entry command*) yang dieksekusi di dalam kontainer untuk memeriksa identitas distribusi Linux.
+```bash
+docker ps -a --filter name=tes-ubuntu-101012300238
+```
 
-**Output Eksekusi Nyata**:
-```text
+```bash
+docker rm tes-ubuntu-101012300238
+```
+
+### Output
+
+```
 PRETTY_NAME="Ubuntu 22.04.5 LTS"
 NAME="Ubuntu"
 VERSION_ID="22.04"
@@ -54,33 +38,21 @@ BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
 PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
 UBUNTU_CODENAME=jammy
 ```
-*Hasil membuktikan bahwa kontainer berjalan di atas lingkungan Ubuntu 22.04.5 LTS secara terisolasi dari host OS.*
 
-### 2.2. Pemeriksaan Status Kontainer (Exited)
-Setelah proses `cat /etc/os-release` selesai, proses utama kontainer berhenti sehingga kontainer berpindah ke status `Exited (0)`. Hal ini diverifikasi dengan:
-```bash
-docker ps -a --filter name=tes-ubuntu-101012300238
+```
+CONTAINER ID   IMAGE          COMMAND                  CREATED        STATUS                              PORTS     NAMES
+ff5ff4647379   ubuntu:22.04   "bash -c 'cat /etc/o…"   1 second ago   Exited (0) Less than a second ago             tes-ubuntu-101012300238
 ```
 
-Output:
-```text
-CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS                      PORTS     NAMES
-8982390a3692   ubuntu:22.04   "bash -c 'cat /etc/o…"   10 seconds ago   Exited (0) 9 seconds ago              tes-ubuntu-101012300238
+```
+tes-ubuntu-101012300238
+Status after rm:
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 ```
 
-### 2.3. Penghapusan Kontainer
-Pembersihan sumber daya dilakukan dengan menghapus kontainer yang telah berhenti:
-```bash
-docker rm tes-ubuntu-101012300238
-```
-Verifikasi ulang membuktikan kontainer telah dihapus dari daftar `docker ps -a`.
+## Bagian 2 — app.py dan Dockerfile
 
----
-
-## 3. Bagian 2: Web App Python & Custom Dockerfile
-
-### 3.1. Source Code Aplikasi Web (`app.py`)
-Aplikasi web dikembangkan menggunakan modul bawaan Python `http.server` tanpa memerlukan dependensi pihak ketiga, sehingga menjaga image tetap minimal dan aman. Aplikasi membaca variabel lingkungan `STUDENT_NIM` untuk menampilkan kartu identitas mahasiswa:
+### app.py
 
 ```python
 import http.server
@@ -120,6 +92,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode("utf-8"))
 
     def log_message(self, format, *args):
+        # Clean logging for container stdout
         print(f"[{self.log_date_time_string()}] {format % args}")
 
 if __name__ == "__main__":
@@ -128,8 +101,7 @@ if __name__ == "__main__":
         httpd.serve_forever()
 ```
 
-### 3.2. Spesifikasi `Dockerfile`
-File `Dockerfile` mendefinisikan tahapan perakitan image kontainer secara deklaratif:
+### Dockerfile
 
 ```dockerfile
 FROM python:3.11-slim
@@ -141,31 +113,33 @@ EXPOSE 8000
 CMD ["python", "/app/app.py"]
 ```
 
-**Analisis Instruksi Dockerfile**:
-1. `FROM python:3.11-slim`: Menggunakan image dasar Python 3.11 berbasis Debian Slim untuk meminimalkan ukuran image tanpa mengorbankan kompatibilitas runtime.
-2. `WORKDIR /app`: Menetapkan direktori kerja aktif di dalam kontainer (`/app`).
-3. `ENV PYTHONUNBUFFERED=1`: Mematikan *buffering* stdout/stderr Python sehingga catatan *log* langsung diteruskan ke Docker daemon secara *real-time*.
-4. `ENV STUDENT_NIM=101012300238`: Menetapkan nilai baku variabel lingkungan `STUDENT_NIM` berisi NIM mahasiswa.
-5. `COPY app.py /app/app.py`: Menyalin file kode sumber dari direktori host ke dalam filesystem kontainer.
-6. `EXPOSE 8000`: Mendokumentasikan bahwa kontainer mendengarkan koneksi masuk pada port TCP 8000.
-7. `CMD ["python", "/app/app.py"]`: Perintah default yang dieksekusi saat kontainer diluncurkan.
+| Instruksi | Fungsi |
+|---|---|
+| `FROM python:3.11-slim` | Base image Python minimal untuk menjalankan app.py |
+| `WORKDIR /app` | Menetapkan direktori kerja di dalam kontainer |
+| `ENV PYTHONUNBUFFERED=1` | Menonaktifkan buffering stdout agar log langsung tampil |
+| `ENV STUDENT_NIM=101012300238` | Menyuntikkan NIM sebagai environment variable ke aplikasi |
+| `COPY app.py /app/app.py` | Menyalin source code aplikasi ke image |
+| `EXPOSE 8000` | Mendeklarasikan port yang digunakan aplikasi di dalam kontainer |
+| `CMD ["python", "/app/app.py"]` | Perintah default yang dijalankan saat kontainer start |
 
-### 3.3. Proses Build Image
-Image dikompilasi menggunakan perintah:
+### Build
+
 ```bash
 docker build -t web-tugas-101012300238:1.0 .
 ```
-Semua layer berhasil dibuat dan disimpan ke dalam cache lokal Docker dengan tag `web-tugas-101012300238:1.0`.
 
----
+```
+#8 exporting manifest list sha256:e3087ae519052f3f60b23f7af0ad1b9a5105258e4da624498c741d8241708eee 0.0s done
+#8 naming to docker.io/library/web-tugas-101012300238:1.0 done
+#8 unpacking to docker.io/library/web-tugas-101012300238:1.0 done
+#8 DONE 0.1s
+```
 
-## 4. Bagian 3: Orkestrasi Multi-Service dengan Docker Compose
+## Bagian 3 — Docker Compose (service web dan cache)
 
-Untuk mensimulasikan lingkungan aplikasi komputasi awan yang modular (*microservices*), arsitektur diperluas menjadi dua layanan terintegrasi:
-- **`web`**: Layanan antarmuka web Python yang dikompilasi dari `Dockerfile`.
-- **`cache`**: Layanan basis data memori menggunakan image resmi `redis:7-alpine`.
+### docker-compose.yml
 
-### 4.1. Konfigurasi `docker-compose.yml`
 ```yaml
 services:
   web:
@@ -185,79 +159,53 @@ services:
     restart: unless-stopped
 ```
 
-**Fitur Konfigurasi**:
-- `container_name`: Memberikan penamaan eksplisit yang menyertakan identitas NIM mahasiswa.
-- `ports: - "8080:8000"`: Memetakan port host `8080` ke port kontainer `8000`.
-- `depends_on: - cache`: Menjamin kontainer cache Redis diluncurkan terlebih dahulu sebelum layanan web aktif.
-- `restart: unless-stopped`: Memastikan resiliensi layanan jika terjadi kegagalan proses tak terduga.
+### Menjalankan
 
-### 4.2. Menjalankan Layanan Compose
-Layanan dijalankan secara *detached* (*background*):
 ```bash
 docker compose up -d
 ```
 
-### 4.3. Verifikasi Status Layanan (Screenshot Wajib 1)
-Status kedua layanan diperiksa menggunakan:
+### Screenshot 1 — docker compose ps
+
 ```bash
 docker compose ps
 ```
 
-Hasil menunjukkan kedua layanan (`web` dan `cache`) berada pada status **Up** dan berjalan normal:
+| Service | Status | Ports |
+|---|---|---|
+| web | Up | 0.0.0.0:8080->8000/tcp |
+| cache | Up | 6379/tcp |
 
-![Screenshot 1: Docker Compose PS](screenshots/screenshot-1-compose-ps.png)
-*Gambar 1 (Screenshot Wajib 1): Bukti eksekusi `docker compose ps` menampilkan kedua service `web` dan `cache` berstatus Up.*
+![](screenshots/screenshot-1-compose-ps.png)
 
-Tabel Status Layanan:
-| Service | Nama Kontainer | Image | Status | Port Binding |
-|---|---|---|---|---|
-| `cache` | `cache-container-101012300238` | `redis:7-alpine` | **Up** | `6379/tcp` |
-| `web` | `web-container-101012300238` | `web-tugas-101012300238:1.0` | **Up** | `0.0.0.0:8080->8000/tcp` |
+### Screenshot 2 — curl http://localhost:8080
 
----
-
-### 4.4. Pengujian Akses HTTP via cURL (Screenshot Wajib 2)
-Pengujian akses terhadap web server dilakukan dari terminal host menggunakan perintah:
 ```bash
 curl http://localhost:8080
 ```
 
-Hasil respon HTTP menampilkan antarmuka HTML dengan nilai identitas **NIM: 101012300238**:
-
-![Screenshot 2: HTTP Curl Response](screenshots/screenshot-2-curl.png)
-*Gambar 2 (Screenshot Wajib 2): Bukti respon HTTP cURL memuat NIM mahasiswa `101012300238`.*
-
-### 4.5. Pemeriksaan Log dan Pembersihan
-Pencatatan log transaksi HTTP diverifikasi dengan:
-```bash
-docker compose logs
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Praktikum Cloud Computing - Docker</title>
+    ...
+</head>
+<body>
+    <div class="card">
+        <h1>Praktikum Docker Berhasil!</h1>
+        <p>Aplikasi web berjalan di dalam kontainer.</p>
+        <p>Dikembangkan oleh NIM: <span class="nim">101012300238</span></p>
+        <div class="badge">Cloud Computing BS1TT-47</div>
+    </div>
+</body>
+</html>
 ```
-Tercatat *access log* pada layanan web:
-```text
-web-container-101012300238  | [07/Oct/2026 14:29:59] "GET / HTTP/1.1" 200 -
-```
 
-Untuk menghentikan dan membersihkan seluruh sumber daya kontainer beserta network-nya:
+![](screenshots/screenshot-2-curl.png)
+
+### Menghentikan
+
 ```bash
 docker compose down
 ```
-
----
-
-## 5. Analisis Teknis & Pembahasan
-
-1. **Manajemen Layering Dockerfile**:
-   Penggunaan instruksi `COPY` setelah deklarasi direktori kerja dan variabel lingkungan memaksimalkan mekanisme *layer caching* Docker. Jika file `app.py` diubah, Docker hanya mengompilasi ulang layer `COPY`, tanpa perlu mengunduh ulang base image.
-2. **Deklarasi Multi-Service**:
-   Docker Compose secara otomatis membuat *default network bridge* untuk seluruh layanan di dalam file konfigurasi. Service `web` dapat berkomunikasi dengan service `cache` menggunakan nama host `cache` melalui DNS internal bawaan Docker.
-3. **Pemisahan Konfigurasi dan Kode (12-Factor App)**:
-   Penerapan variabel lingkungan `STUDENT_NIM` mendemonstrasikan prinsip *Twelve-Factor App Methodology* (faktor III: *Config*), di mana konfigurasi dipisahkan secara tegas dari kode program, memungkinkan deployment di berbagai lingkungan tanpa mengubah image dasar.
-
----
-
-## 6. Kesimpulan
-
-Tugas hands-on Docker telah berhasil diimplementasikan secara komprehensif:
-1. Siklus hidup kontainer Ubuntu 22.04 (create, run, exit, remove) terbukti dapat dikendalikan dengan presisi menggunakan Docker CLI.
-2. Pembuatan custom Dockerfile berhasil memaketkan aplikasi web Python 3.11 dengan pembacaan variabel lingkungan dinamis beridentitas NIM **101012300238**.
-3. Orkestrasi Docker Compose membuktikan kemampuan menjalankan dan menghubungkan multi-service (`web` dan `cache`) secara otomatis dengan port binding yang terverifikasi melalui `curl`.
