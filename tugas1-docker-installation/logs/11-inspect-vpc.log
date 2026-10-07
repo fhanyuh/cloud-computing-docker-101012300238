@@ -1,0 +1,49 @@
+[
+    {
+        "Name": "vpc-local-101012300238",
+        "Id": "5191b9b6d1f7142cbed9c61cc9e712a682b4d56d84dc5e09f9f38e2bb59eee1e",
+        "Created": "2026-10-07T21:18:24.126346477+07:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "192.168.50.0/24",
+                    "Gateway": "192.168.50.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Options": {},
+        "Labels": {},
+        "Containers": {
+            "90731172b0c3971e13cabee906dec4c1ffb6cb638f90816430ff2729fbc65d28": {
+                "Name": "nginx-vpc-101012300238",
+                "EndpointID": "bb582c3f1f39d3f5517a7f8246e7fc4dfc6db12a496401db9db3a91814afb13a",
+                "MacAddress": "52:f2:23:85:6e:13",
+                "IPv4Address": "192.168.50.10/24",
+                "IPv6Address": ""
+            }
+        },
+        "Status": {
+            "IPAM": {
+                "Subnets": {
+                    "192.168.50.0/24": {
+                        "IPsInUse": 4,
+                        "DynamicIPsAvailable": 252
+                    }
+                }
+            }
+        }
+    }
+]

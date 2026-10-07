@@ -1,0 +1,11 @@
+web-container-101012300238    | Serving HTTP on port 8000 with STUDENT_NIM=101012300238
+web-container-101012300238    | [07/Oct/2026 14:29:59] "GET / HTTP/1.1" 200 -
+cache-container-101012300238  | 1:C 07 Oct 2026 14:29:57.393 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+cache-container-101012300238  | 1:C 07 Oct 2026 14:29:57.393 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+cache-container-101012300238  | 1:C 07 Oct 2026 14:29:57.393 * Redis version=7.4.11, bits=64, commit=00000000, modified=0, pid=1, just started
+cache-container-101012300238  | 1:C 07 Oct 2026 14:29:57.393 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+cache-container-101012300238  | 1:M 07 Oct 2026 14:29:57.393 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+cache-container-101012300238  | 1:M 07 Oct 2026 14:29:57.394 * monotonic clock: POSIX clock_gettime
+cache-container-101012300238  | 1:M 07 Oct 2026 14:29:57.394 * Running mode=standalone, port=6379.
+cache-container-101012300238  | 1:M 07 Oct 2026 14:29:57.394 * Server initialized
+cache-container-101012300238  | 1:M 07 Oct 2026 14:29:57.394 * Ready to accept connections tcp

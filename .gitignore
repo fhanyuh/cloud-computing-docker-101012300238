@@ -1,0 +1,5 @@
+*.tmp
+*.html
+*.zip
+__pycache__/
+cloud-1.pptx

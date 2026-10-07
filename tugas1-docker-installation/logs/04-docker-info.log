@@ -1,0 +1,66 @@
+Client: Docker Engine - Community
+ Version:    29.7.2
+ Context:    default
+ Debug Mode: false
+ Plugins:
+  buildx: Docker Buildx (Docker Inc.)
+    Version:  v0.36.1
+    Path:     /usr/libexec/docker/cli-plugins/docker-buildx
+  compose: Docker Compose (Docker Inc.)
+    Version:  v5.5.0
+    Path:     /usr/libexec/docker/cli-plugins/docker-compose
+
+Server:
+ Containers: 7
+  Running: 2
+  Paused: 0
+  Stopped: 5
+ Images: 17
+ Server Version: 29.7.2
+ Storage Driver: overlayfs
+  driver-type: io.containerd.snapshotter.v1
+ Logging Driver: json-file
+ Cgroup Driver: systemd
+ Cgroup Version: 2
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+ CDI spec directories:
+  /etc/cdi
+  /run/cdi
+ Discovered Devices:
+  cdi: nvidia.com/gpu=0
+  cdi: nvidia.com/gpu=GPU-14477659-d65e-1662-b56b-6134868c617a
+  cdi: nvidia.com/gpu=all
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 nvidia runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: aad11006b869517fcd3009450b6f82da282e1a9b
+ runc version: v1.4.3-0-gbb14dabe
+ init version: de40ad0
+ Security Options:
+  apparmor
+  seccomp
+   Profile: builtin
+  cgroupns
+ Kernel Version: 7.0.0-34-generic
+ Operating System: Ubuntu 26.04.1 LTS
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 8
+ Total Memory: 30.62GiB
+ Name: hanmazaya
+ ID: 3c8a4961-61f5-4799-9013-07d6da7d9413
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ Experimental: false
+ Insecure Registries:
+  ::1/128
+  127.0.0.0/8
+ Live Restore Enabled: false
+ Firewall Backend: iptables
+  EnableUserlandProxy: true
+  UserlandProxyPath: /usr/bin/docker-proxy
+

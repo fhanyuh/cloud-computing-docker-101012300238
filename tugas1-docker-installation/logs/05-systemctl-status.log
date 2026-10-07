@@ -1,0 +1,27 @@
+● docker.service - Docker Application Container Engine
+     Loaded: loaded (/usr/lib/systemd/system/docker.service; enabled; preset: enabled)
+     Active: active (running) since Wed 2026-10-07 20:58:39 WIB; 19min ago
+ Invocation: f2cbd98386b249c18eaacf4eb8736ebd
+TriggeredBy: ● docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 2482 (dockerd)
+      Tasks: 47
+     Memory: 143.9M (peak: 151.1M)
+        CPU: 2.375s
+     CGroup: /system.slice/docker.service
+             ├─2482 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+             ├─3699 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 3100 -container-ip 172.19.0.2 -container-port 3100 -use-listen-fd
+             ├─3706 /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 3100 -container-ip 172.19.0.2 -container-port 3100 -use-listen-fd
+             ├─4025 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 8100 -container-ip 172.19.0.3 -container-port 8100 -use-listen-fd
+             └─4033 /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 8100 -container-ip 172.19.0.3 -container-port 8100 -use-listen-fd
+
+Oct 07 20:58:37 hanmazaya dockerd[2482]: time="2026-10-07T20:58:37.000901498+07:00" level=info msg="Deleting nftables IPv6 rules" error="running nft: /dev/stdin:1:18-31: Error: Could not process rule: No such file or directory\ndelete table ip6 docker-bridges\n                 ^^^^^^^^^^^^^^\n exit status 1"
+Oct 07 20:58:37 hanmazaya dockerd[2482]: time="2026-10-07T20:58:37.694138230+07:00" level=info msg="sbJoin: gwep4 ''->'99a53b0c84a1', gwep6 ''->''" eid=99a53b0c84a1 ep=ishs-edge-edge-frontend-1 net=ishs-edge_default nid=8122efa7ea26
+Oct 07 20:58:38 hanmazaya dockerd[2482]: time="2026-10-07T20:58:38.047158559+07:00" level=info msg="sbJoin: gwep4 ''->'520899674edd', gwep6 ''->''" eid=520899674edd ep=ishs-edge-edge-backend-1 net=ishs-edge_default nid=8122efa7ea26
+Oct 07 20:58:38 hanmazaya dockerd[2482]: time="2026-10-07T20:58:38.082607856+07:00" level=info msg="Loading containers: done."
+Oct 07 20:58:38 hanmazaya dockerd[2482]: time="2026-10-07T20:58:38.091963907+07:00" level=info msg="Docker daemon" commit=6a43e3d containerd-snapshotter=true storage-driver=overlayfs version=29.7.2
+Oct 07 20:58:38 hanmazaya dockerd[2482]: time="2026-10-07T20:58:38.092262954+07:00" level=info msg="Initializing buildkit"
+Oct 07 20:58:39 hanmazaya dockerd[2482]: time="2026-10-07T20:58:39.408957285+07:00" level=info msg="Completed buildkit initialization"
+Oct 07 20:58:39 hanmazaya dockerd[2482]: time="2026-10-07T20:58:39.419488603+07:00" level=info msg="Daemon has completed initialization"
+Oct 07 20:58:39 hanmazaya dockerd[2482]: time="2026-10-07T20:58:39.419583115+07:00" level=info msg="API listen on /run/docker.sock"
+Oct 07 20:58:39 hanmazaya systemd[1]: Started docker.service - Docker Application Container Engine.

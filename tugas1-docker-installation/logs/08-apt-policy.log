@@ -1,0 +1,21 @@
+
+docker-ce:
+  Installed: 5:29.7.2-1~ubuntu.26.04~resolute
+  Candidate: 5:29.8.2-1~ubuntu.26.04~resolute
+  Version table:
+     5:29.8.2-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+     5:29.8.1-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+     5:29.8.0-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+ *** 5:29.7.2-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+        100 /var/lib/dpkg/status
+     5:29.7.1-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+     5:29.7.0-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+     5:29.6.2-1~ubuntu.26.04~resolute 500
+        500 https://download.docker.com/linux/ubuntu resolute/stable amd64 Packages
+     5:29.6.1-1~ubuntu.26.04~resolute 500

@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    image: web-tugas-101012300238:1.0
+    container_name: web-container-101012300238
+    ports:
+      - "8080:8000"
+    environment:
+      STUDENT_NIM: "101012300238"
+    depends_on:
+      - cache
+    restart: unless-stopped
+  cache:
+    image: redis:7-alpine
+    container_name: cache-container-101012300238
+    restart: unless-stopped

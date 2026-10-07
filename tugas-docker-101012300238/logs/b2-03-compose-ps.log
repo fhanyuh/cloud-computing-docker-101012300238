@@ -1,0 +1,3 @@
+NAME                           IMAGE                        COMMAND                  SERVICE   CREATED         STATUS         PORTS
+cache-container-101012300238   redis:7-alpine               "docker-entrypoint.s…"   cache     2 seconds ago   Up 2 seconds   6379/tcp
+web-container-101012300238     web-tugas-101012300238:1.0   "python /app/app.py"     web       2 seconds ago   Up 2 seconds   0.0.0.0:8080->8000/tcp, [::]:8080->8000/tcp
