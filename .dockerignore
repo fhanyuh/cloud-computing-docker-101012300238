@@ -1,0 +1,15 @@
+.git
+.gitignore
+README.md
+Jenkinsfile
+__pycache__
+*.pyc
+.env
+tugas1-docker-installation
+tugas-docker-101012300238
+cicd
+*.pdf
+*.png
+*.log
+*.zip
+*.pptx
