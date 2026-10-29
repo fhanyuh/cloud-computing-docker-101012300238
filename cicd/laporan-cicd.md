@@ -1,525 +1,163 @@
-# Laporan Praktikum CI/CD Pipeline — Jenkins, GitHub, Docker, dan ngrok
+# Laporan Praktikum CI/CD Pipeline: Jenkins, GitHub, Docker, dan ngrok
 
-Nama   : Rafhan Mazaya Fathurrahman  
-NIM    : 101012300238  
-Kelas  : BS1TT-47-REG-GAB01  
-Dosen  : Cahyo Alhazim  
-Repo   : https://github.com/fhanyuh/cloud-computing-docker-101012300238  
+Nama : Rafhan Mazaya Fathurrahman  
+NIM : 101012300238  
+Kelas : BS1TT-47-REG-GAB01  
+Dosen : Cahyo Alhazim  
+Repositori : https://github.com/fhanyuh/cloud-computing-docker-101012300238  
 
-## Bagian 1 — Arsitektur dan Konfigurasi Lingkungan
+## Bagian 1. Arsitektur dan Persiapan Lingkungan
 
-Praktikum ini mengimplementasikan pipeline Continuous Integration dan Continuous Deployment (CI/CD) otomatis untuk layanan Python REST API menggunakan GitHub sebagai repositori kode sumber, ngrok sebagai penerus webhook HTTPS publik ke lingkungan lokal, Jenkins di dalam container Docker sebagai server otomasi, dan Docker Engine sebagai runtime deployment dengan penyimpanan persisten berbasis Docker named volume.
+Pada praktikum ini dibuat alur kerja Continuous Integration dan Continuous Deployment (CI/CD) otomatis untuk layanan Python REST API. Kode sumber aplikasi disimpan pada repositori GitHub, kemudian setiap perubahan yang dikirim melalui perintah git push diteruskan oleh layanan tunnel ngrok ke server Jenkins lokal yang berjalan di dalam container Docker. Selanjutnya Jenkins menjalankan lima tahapan pipeline secara otomatis mulai dari pengambilan kode, pemeriksaan sintaks, pembuatan image Docker, deployment container baru, hingga pengujian endpoint health check, dengan penyimpanan data pesan menggunakan Docker named volume agar data tidak hilang saat container diperbarui.
 
-```text
-Developer Laptop (git push)
-        |
-        v
-GitHub Repository (fhanyuh/cloud-computing-docker-101012300238)
-        |  Webhook HTTPS (POST /github-webhook/)
-        v
-ngrok Public Tunnel (https://unlocated-waylon-potently.ngrok-free.dev)
-        |
-        v
-Jenkins Server (localhost:8080 - container jenkins-server)
-        |  Docker Socket (/var/run/docker.sock)
-        v
-Docker Engine Host
-        |
-        +---> Container: production-api-container (localhost:5000)
-        +---> Named Volume: production-api-data (/var/lib/backend_data)
-```
+![](screenshots/00-arsitektur-cicd.png)
 
-| Komponen | Lokasi / Port | Peran pada Arsitektur CI/CD |
+| Komponen | Lokasi / Port | Fungsi pada Sistem CI/CD |
 |---|---|---|
-| GitHub Repository | `cloud-computing-docker-101012300238` | Menyimpan kode sumber (`app.py`, `Dockerfile`, `.dockerignore`, `Jenkinsfile`) dan mengirim event `push` melalui webhook |
-| ngrok Tunnel | `https://unlocated-waylon-potently.ngrok-free.dev` | Meneruskan payload HTTP POST dari GitHub ke endpoint lokal Jenkins pada port `8080` |
-| Jenkins UI & Server | `localhost:8080` (`jenkins-server`) | Menjalankan pipeline 5 tahap (checkout, verifikasi sintaks, build image, deploy container, health check) |
-| Python CRUD API | `localhost:5000` (`production-api-container`) | Menyediakan layanan REST API (`/health`, `/messages`, `/messages/<id>`, `/messages?q=`) |
-| Docker Named Volume | `production-api-data` | Menyimpan berkas `/var/lib/backend_data/messages.json` di luar siklus hidup container |
-
-## Bagian 2 — Implementasi Aplikasi Python REST API, Dockerfile, dan Jenkinsfile (Tugas A & Tugas D)
-
-Pada tahap ini dibangun aplikasi backend REST API tanpa framework eksternal (`http.server`), dilengkapi tiga pengembangan dari **Tugas D**:
-
-1. **Endpoint Detail dan Filter Query (`app.py`)**: Penambahan endpoint `GET /messages/<index>` untuk mengambil pesan berdasarkan indeks serta parameter kueri `GET /messages?q=<keyword>` untuk memfilter pesan secara case-insensitive.
-2. **Docker `HEALTHCHECK` (`Dockerfile`)**: Penambahan instruksi `HEALTHCHECK` di level container untuk memantau kesiapan `/health` secara berkala oleh Docker daemon.
-3. **Tag Image Berbasis Commit SHA (`Jenkinsfile`)**: Selain tag `${BUILD_NUMBER}` dan `latest`, setiap build menandai image dengan `sha-${GIT_SHA}` (`git rev-parse --short HEAD`) guna memudahkan pelacakan versi komit dan rollback.
-
-### 2.1 Kode Sumber `app.py`
-
-```python
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs
-from pathlib import Path
-import json
-import os
-
-DATA_FILE = Path(os.getenv(
-    "DATA_FILE", "/var/lib/backend_data/messages.json"
-))
-
-
-def read_messages():
-    if not DATA_FILE.exists():
-        return []
-    try:
-        return json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-
-
-def write_messages(messages):
-    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-    DATA_FILE.write_text(
-        json.dumps(messages, indent=2, ensure_ascii=False),
-        encoding="utf-8"
-    )
-
-
-def save_message(message):
-    messages = read_messages()
-    item = {
-        "message": message,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    messages.append(item)
-    write_messages(messages)
-    return item
-
-
-class APIHandler(BaseHTTPRequestHandler):
-    def send_json(self, status, payload):
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header(
-            "Access-Control-Allow-Methods",
-            "GET, POST, DELETE, OPTIONS"
-        )
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_OPTIONS(self):
-        self.send_json(200, {"status": "ok"})
-
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        if parsed.path in ("/", "/health"):
-            return self.send_json(200, {
-                "status": "active", "service": "Backend API"
-            })
-        if parsed.path == "/messages":
-            messages = read_messages()
-            query = parse_qs(parsed.query)
-            if "q" in query:
-                raw_q = query["q"][0].strip()
-                keyword = raw_q.lower()
-                filtered = [
-                    item for item in messages
-                    if keyword in str(item.get("message", "")).lower()
-                ]
-                return self.send_json(200, {
-                    "messages": filtered,
-                    "total": len(filtered),
-                    "query": raw_q
-                })
-            return self.send_json(200, {
-                "messages": messages, "total": len(messages)
-            })
-        if parsed.path.startswith("/messages/"):
-            raw_idx = parsed.path[len("/messages/"):]
-            try:
-                idx = int(raw_idx)
-            except ValueError:
-                return self.send_json(400, {"error": "Index must be an integer"})
-            messages = read_messages()
-            if idx < 0 or idx >= len(messages):
-                return self.send_json(404, {"error": "Message not found"})
-            return self.send_json(200, {
-                "index": idx, "message": messages[idx]
-            })
-        return self.send_json(404, {"error": "Endpoint not found"})
-
-    def do_POST(self):
-        if self.path != "/messages":
-            return self.send_json(404, {"error": "Endpoint not found"})
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            message = str(payload.get("message", "")).strip()
-            if not message:
-                return self.send_json(400, {"error": "message must not be empty"})
-            if len(message) > 500:
-                return self.send_json(400, {
-                    "error": "message must be 500 characters or fewer"
-                })
-            return self.send_json(201, {
-                "status": "created", "message": save_message(message)
-            })
-        except (ValueError, json.JSONDecodeError):
-            return self.send_json(400, {"error": "Invalid JSON request body"})
-
-    def do_DELETE(self):
-        parsed = urlparse(self.path)
-        if parsed.path != "/messages":
-            return self.send_json(404, {"error": "Endpoint not found"})
-        query = parse_qs(parsed.query)
-        if "index" not in query:
-            return self.send_json(400, {"error": "Missing index parameter"})
-        try:
-            index = int(query["index"][0])
-            messages = read_messages()
-            if index < 0 or index >= len(messages):
-                return self.send_json(404, {"error": "Message not found"})
-            removed = messages.pop(index)
-            write_messages(messages)
-            return self.send_json(200, {"status": "deleted", "removed": removed})
-        except (ValueError, IndexError):
-            return self.send_json(400, {"error": "Index must be an integer"})
-
-    def log_message(self, fmt, *args):
-        print(f"[{self.log_date_time_string()}] {fmt % args}", flush=True)
-
-
-if __name__ == "__main__":
-    print("Backend API listening on 0.0.0.0:5000", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", 5000), APIHandler).serve_forever()
-```
-
-### 2.2 `Dockerfile` dan `.dockerignore`
-
-```dockerfile
-FROM python:3.11-slim
-ENV PYTHONUNBUFFERED=1
-WORKDIR /app
-COPY app.py .
-EXPOSE 5000
-HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)" || exit 1
-CMD ["python", "app.py"]
-```
-
-Perbandingan `HEALTHCHECK` Docker dengan health check `curl` dari Jenkins:
-
-- **Health check `curl` di Jenkins (Stage 5)** bersifat satu kali (*one-shot verification*) sesaat setelah deployment untuk menentukan apakah eksekusi build pipeline dinyatakan `SUCCESS` atau `FAILURE`.
-- **Instruksi `HEALTHCHECK` pada `Dockerfile`** dijalankan secara kontinu oleh Docker Engine setiap 10 detik selama container hidup, sehingga status kesehatan runtime (`healthy` atau `unhealthy`) dapat dipantau setiap saat melalui `docker ps` meskipun job Jenkins sudah selesai.
-
-Isi berkas `.dockerignore`:
-
-```text
-.git
-.gitignore
-README.md
-Jenkinsfile
-__pycache__
-*.pyc
-.env
-tugas1-docker-installation
-tugas-docker-101012300238
-cicd
-*.pdf
-*.png
-*.log
-*.zip
-*.pptx
-```
-
-### 2.3 Definisi Pipeline-as-Code (`Jenkinsfile`)
-
-```groovy
-pipeline {
-    agent any
-
-    environment {
-        PYTHONUNBUFFERED = '1'
-        REGISTRY_NAME = 'python-crud-api'
-        CONTAINER_NAME = 'production-api-container'
-        PORT_MAPPING = '5000:5000'
-        VOLUME_NAME = 'production-api-data'
-    }
-
-    stages {
-        stage('1. Checkout Code') {
-            steps {
-                echo 'Checking out source code from GitHub'
-                checkout scm
-            }
-        }
-
-        stage('2. Code Syntax Verification') {
-            steps {
-                sh 'python3 -m py_compile app.py'
-            }
-        }
-
-        stage('3. Build Docker Image') {
-            steps {
-                sh '''
-                    GIT_SHA=$(git rev-parse --short HEAD)
-                    docker build -t ${REGISTRY_NAME}:${BUILD_NUMBER} .
-                    docker tag ${REGISTRY_NAME}:${BUILD_NUMBER} ${REGISTRY_NAME}:sha-${GIT_SHA}
-                    docker tag ${REGISTRY_NAME}:${BUILD_NUMBER} ${REGISTRY_NAME}:latest
-                    docker images ${REGISTRY_NAME}
-                '''
-            }
-        }
-
-        stage('4. Automated Deployment') {
-            steps {
-                sh '''
-                    docker stop ${CONTAINER_NAME} || true
-                    docker rm ${CONTAINER_NAME} || true
-                    docker volume create ${VOLUME_NAME}
-                    docker run -d \
-                      --name ${CONTAINER_NAME} \
-                      -p ${PORT_MAPPING} \
-                      -v ${VOLUME_NAME}:/var/lib/backend_data \
-                      ${REGISTRY_NAME}:latest
-                '''
-            }
-        }
-
-        stage('5. Health Check') {
-            steps {
-                sh 'sleep 3'
-                sh 'curl -fsS http://localhost:5000/health'
-                sh 'docker ps --filter name=${CONTAINER_NAME}'
-                sh 'docker logs --tail 20 ${CONTAINER_NAME}'
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline completed successfully.'
-        }
-        failure {
-            echo 'Pipeline failed. Inspect Console Output.'
-        }
-    }
-}
-```
-
-### 2.4 Verifikasi Manual Aplikasi di Docker Sebelum Integrasi Jenkins
-
-```bash
-docker build -t python-crud-api:manual .
-docker volume create production-api-data
-docker run -d --name production-api-container \
-  -p 5000:5000 \
-  -v production-api-data:/var/lib/backend_data \
-  python-crud-api:manual
-curl -i http://localhost:5000/health
-```
-
-Output pengujian manual (`cicd/logs/01-manual-docker-test.log` dan `cicd/logs/02-manual-crud-curl.log`):
-
-```text
-HTTP/1.0 200 OK
-Server: BaseHTTP/0.6 Python/3.11.18
-Content-Type: application/json; charset=utf-8
-Content-Length: 46
-
-{"status": "active", "service": "Backend API"}
-```
-
-Setelah pengujian manual selesai, container `production-api-container` dihentikan dan dihapus (`docker stop && docker rm`) tanpa menghapus volume `production-api-data`.
-
-## Bagian 3 — Konfigurasi Jenkins di Docker dan Kredensial GitHub PAT
-
-### 3.1 Menjalankan Container `jenkins-server`
-
-```bash
-docker network create jenkins-net
-docker volume create jenkins-data
-docker run -d \
-  --name jenkins-server \
-  --network jenkins-net \
-  -p 8080:8080 -p 50000:50000 \
-  -v jenkins-data:/var/jenkins_home \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$(which docker)":/usr/bin/docker \
-  --restart unless-stopped \
-  jenkins/jenkins:lts-jdk17
-```
-
-### 3.2 Konfigurasi GitHub Fine-Grained PAT dan Jenkins Credential
-
-Modul menyarankan Fine-grained PAT dengan izin `Contents: Read-only` dan `Metadata: Read-only` khusus satu repositori. Pada praktikum ini, secret credential diisi dengan token hasil `gh auth token` dari sesi GitHub CLI yang sudah login, bukan Fine-grained PAT khusus, sehingga cakupan izinnya lebih luas daripada yang dianjurkan modul. Untuk penggunaan di luar lab, token ini sebaiknya diganti dengan Fine-grained PAT read-only lewat Jenkins Credentials (ID tetap `github-pat-readonly`). Nilai token tidak pernah ditulis ke repositori maupun log. Credential disimpan pada **Manage Jenkins -> Credentials -> System -> Global credentials** menggunakan jenis `Username with password`, Username `fhanyuh`, ID `github-pat-readonly`, dan deskripsi `Read-only GitHub checkout for python-crud-api`.
-
-![](screenshots/03-jenkins-credentials.png)
-
-## Bagian 4 — Dokumentasi Troubleshooting Nyata dan Validasi Pipeline
-
-Saat menjalankan **Build #1** pertama kali pada job `python-crud-api-pipeline` dan menguji akses Docker dari dalam `jenkins-server`, ditemukan dua kendala lingkungan pada container `jenkins-server` (`cicd/logs/03-troubleshooting-build1-failed.log`):
-
-```text
-=== 1. Pemeriksaan Awal Docker CLI & Socket di Container Jenkins ===
-$ docker exec jenkins-server docker ps
-permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
-
-=== 2. Potongan Console Output Jenkins Build #1 (Gagal) ===
-[Pipeline] { (2. Code Syntax Verification)
-[Pipeline] sh
-+ python3 -m py_compile app.py
-/var/jenkins_home/workspace/python-crud-api-pipeline@tmp/durable-5c052ac4/script.sh.copy: 1: python3: not found
-...
-ERROR: script returned exit code 127
-Finished: FAILURE
-```
-
-### Analisis Penyebab dan Langkah Penyelesaian
-
-1. **Masalah 1 (`python3: not found` pada Stage 2)**: Image resmi `jenkins/jenkins:lts-jdk17` berbasis Debian hanya menyertakan runtime Java secara bawaan. Solusi: memasang paket `python3` di dalam container `jenkins-server` menggunakan `docker exec -u root jenkins-server apt-get update && apt-get install -y python3 socat`.
-2. **Masalah 2 (`permission denied` pada `/var/run/docker.sock`)**: Berkas `/var/run/docker.sock` pada host dimiliki oleh grup `docker` dengan GID `973`, sedangkan proses Jenkins berjalan sebagai user `jenkins` (UID `1000`). Solusi: menambahkan grup ber-GID `973` di dalam container dan memasukkan user `jenkins` ke grup tersebut (`groupadd -f -g 973 dockerhost && usermod -aG 973 jenkins`), lalu melakukan `docker restart jenkins-server`.
-3. **Penyesuaian 3 (antisipasi akses `http://localhost:5000/health` dari dalam container `jenkins-server`)**: Bagian ini tidak tercatat sebagai kegagalan build karena relay sudah dipasang sebelum Build #2. Karena `jenkins-server` berada di jaringan bridge `jenkins-net`, alamat `localhost:5000` di dalam container mengarah ke loopback milik `jenkins-server` sendiri, bukan port `5000` di host. Solusi: menjalankan relay lokal `socat TCP-LISTEN:5000,fork,bind=127.0.0.1,reuseaddr TCP:172.23.0.1:5000` di dalam `jenkins-server` agar request `curl -fsS http://localhost:5000/health` diteruskan ke gateway host Docker tempat `production-api-container` mempublikasikan port `5000`.
-
-Setelah perbaikan diterapkan, **Build #2** dijalankan dan seluruh 5 stage berhasil (`Finished: SUCCESS`, terekam pada `cicd/logs/04-jenkins-docker-verify.log` dan `cicd/logs/05-jenkins-build2-console.log`).
-
-Satu kendala lagi muncul saat Build #3 pertama kali terpicu webhook (bagian 5.2): checkout gagal dengan `fatal: unable to access 'https://github.com/...': Could not resolve host: github.com` karena resolusi DNS di dalam `jenkins-server` sempat gagal. Solusi: menambahkan entri `github.com` ke `/etc/hosts` container (`docker exec -u root jenkins-server`). Catatan: relay `socat` dan entri `/etc/hosts` tidak persisten, jadi harus diulang jika container `jenkins-server` dibuat ulang.
-
-## Bagian 5 — Tunneling ngrok dan Otomasi GitHub Webhook (Tugas B)
-
-### 5.1 Konfigurasi Tunnel ngrok dan GitHub Webhook
-
-Tunnel HTTP dibuka pada port `8080` menggunakan `ngrok http 8080` dan menghasilkan alamat HTTPS publik `https://unlocated-waylon-potently.ngrok-free.dev` yang meneruskan trafik ke `http://localhost:8080`. Selanjutnya pada pengaturan **Settings -> Webhooks** di repositori GitHub, didaftarkan webhook dengan konfigurasi:
-
-- **Payload URL**: `https://unlocated-waylon-potently.ngrok-free.dev/github-webhook/`
-- **Content type**: `application/json`
-- **Events**: `Just the push event` (`["push"]`)
-- **Active**: `true`
-
-Pada konfigurasi job `python-crud-api-pipeline`, opsi **GitHub hook trigger for GITScm polling** diaktifkan.
-
-### 5.2 Pengujian Pemicuan Build Otomatis melalui `git push`
-
-Dilakukan pembaruan dokumentasi pada `README.md`, lalu dijalankan komit dan push ke branch `main`:
-
-```bash
-git add README.md
-git commit -m "test: trigger GitHub webhook and update README"
-git push origin main
-```
-
-GitHub mengirimkan event `push` ke endpoint `/github-webhook/` melalui ngrok dengan kode respons `200 OK` (`cicd/logs/08-github-webhook-delivery.log`), dan Jenkins secara otomatis menjalankan **Build #3** tanpa menekan tombol `Build Now` (`Started by GitHub push by fhanyuh`).
-
-```text
-Started by GitHub push by fhanyuh
-Obtained Jenkinsfile from git https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
-...
-Checking out Revision 5b00231f0defbf2cb33d579cb708b81c3159c203 (refs/remotes/origin/main)
-Commit message: "test: trigger GitHub webhook and update README"
-[Pipeline] { (2. Code Syntax Verification)
-+ python3 -m py_compile app.py
-[Pipeline] { (3. Build Docker Image)
-+ git rev-parse --short HEAD
-+ GIT_SHA=5b00231
-+ docker build -t python-crud-api:3 .
-Successfully built a35d31cbb24e
-Successfully tagged python-crud-api:3
-+ docker tag python-crud-api:3 python-crud-api:sha-5b00231
-+ docker tag python-crud-api:3 python-crud-api:latest
-[Pipeline] { (4. Automated Deployment)
-+ docker run -d --name production-api-container -p 5000:5000 -v production-api-data:/var/lib/backend_data python-crud-api:latest
-1c8762cf720daf338f3c5ccd43c60a8a259fd4e10ca2a36343a0b97a7e4eebf6
-[Pipeline] { (5. Health Check)
-+ curl -fsS http://localhost:5000/health
-{"status": "active", "service": "Backend API"}
-Pipeline completed successfully.
-Finished: SUCCESS
-```
-
-Catatan jujur: build otomatis pertama gagal karena masalah DNS di atas (log aslinya tidak disimpan). Setelah DNS diperbaiki, record build gagal tersebut dihapus dan delivery `push` yang sama dikirim ulang dari GitHub (Redeliver pada Recent Deliveries, `redelivery: true`, status `200`), sehingga Build #3 yang tersimpan pada `cicd/logs/07-jenkins-build3-webhook-console.log` terpicu webhook GitHub, bukan tombol `Build Now`.
-
-### Screenshot 1 — Halaman Jenkins Pipeline & Stage View
-
-![](screenshots/01-jenkins-pipeline-success.png)
-
-### Screenshot 2 — Console Output Build #3 (Terpicu Otomatis oleh GitHub Push)
-
-![](screenshots/02-jenkins-console-output.png)
-
-### Screenshot 3 — Trafik Delivery GitHub Webhook (`POST /github-webhook/ 200 OK`)
-
-![](screenshots/04-github-webhook-deliveries.png)
-
-## Bagian 6 — Pengujian Matriks Endpoint, Fitur Tugas D, dan Persistensi Data (Tugas C & Tugas D)
+| GitHub Repository | cloud-computing-docker-101012300238 | Menyimpan kode sumber (app.py, Dockerfile, .dockerignore, Jenkinsfile) dan mengirim notifikasi webhook saat terjadi push |
+| ngrok HTTPS Tunnel | https://unlocated-waylon-potently.ngrok-free.dev | Meneruskan request HTTP POST dari GitHub ke port 8080 milik Jenkins di mesin lokal |
+| Jenkins Server Container | localhost:8080 (jenkins-server) | Menjalankan pipeline CI/CD lima tahap secara otomatis berdasarkan definisi pada Jenkinsfile |
+| Python CRUD API | localhost:5000 (production-api-container) | Menjalankan aplikasi backend REST API untuk operasi tambah, baca, filter, detail, dan hapus pesan |
+| Docker Named Volume | production-api-data | Menyimpan file /var/lib/backend_data/messages.json di host agar tetap aman saat container diganti |
+
+## Bagian 2. Pembuatan Aplikasi Python REST API, Dockerfile, dan Jenkinsfile
+
+Aplikasi backend dibuat menggunakan modul bawaan Python (http.server) tanpa framework tambahan agar ukuran image tetap ringan dan cepat saat dibuild. Selain fitur dasar CRUD dari modul praktikum, ditambahkan juga tiga pengembangan dari Tugas D, yaitu:
+
+1. Endpoint detail pesan berdasarkan indeks (GET /messages/{index}) dan pencarian pesan berdasarkan kata kunci secara case-insensitive melalui parameter query (GET /messages?q={keyword}) pada file app.py.
+2. Instruksi HEALTHCHECK di dalam Dockerfile untuk memantau status layanan secara berkala dari sisi Docker Engine.
+3. Penandaan versi image menggunakan nomor build, tag latest, serta potongan commit SHA Git (sha-{GIT_SHA}) di dalam Jenkinsfile untuk memudahkan penelusuran versi kode dan proses rollback.
+
+### 2.1 Isi File app.py
+
+Berikut adalah tampilan kode sumber app.py bagian pertama (baris 1 sampai 70) yang mencakup fungsi pembacaan dan penyimpanan file JSON ke path /var/lib/backend_data/messages.json serta awal handler HTTP:
+
+![](screenshots/01-cat-app-py-1.png)
+
+Berikut adalah lanjutan isi kode sumber app.py bagian kedua (baris 71 sampai 140) yang menangani filter query, pembacaan detail pesan berdasarkan indeks, penambahan pesan baru (POST), penghapusan pesan (DELETE), serta inisialisasi server pada port 5000:
+
+![](screenshots/02-cat-app-py-2.png)
+
+### 2.2 Isi File Dockerfile dan .dockerignore
+
+File Dockerfile menggunakan base image python:3.11-slim dan menambahkan pengecekan berkala melalui instruksi HEALTHCHECK ke endpoint /health. Sementara itu, file .dockerignore digunakan agar folder dokumentasi, laporan, dan file Git tidak ikut terkirim ke Docker daemon saat proses build berlangsung.
+
+![](screenshots/03-cat-dockerfile-dockerignore.png)
+
+Perbedaan antara HEALTHCHECK pada Dockerfile dan health check menggunakan curl di Jenkins adalah:
+
+1. Pengecekan curl pada Jenkins (Stage 5) hanya berjalan satu kali sesaat setelah container baru dijalankan untuk menentukan apakah eksekusi pipeline dinyatakan berhasil atau gagal.
+2. Instruksi HEALTHCHECK pada Dockerfile dijalankan terus-menerus oleh Docker Engine setiap 10 detik selama container aktif, sehingga status kesehatan container (healthy atau unhealthy) selalu terlihat ketika menjalankan perintah docker ps.
+
+### 2.3 Isi File Jenkinsfile
+
+File Jenkinsfile mendefinisikan pipeline deklaratif dengan 5 tahap berurutan, yaitu Checkout Code, Code Syntax Verification, Build Docker Image (dengan tambahan tag commit SHA), Automated Deployment (menghentikan container lama, memasang volume production-api-data, dan menjalankan container baru), serta Health Check.
+
+![](screenshots/04-cat-jenkinsfile.png)
+
+### 2.4 Pengujian Manual Aplikasi di Docker Sebelum Integrasi Jenkins
+
+Sebelum diintegrasikan ke Jenkins, aplikasi diuji terlebih dahulu secara manual menggunakan perintah docker build, pembuatan volume production-api-data, menjalankan container production-api-container, dan menguji endpoint melalui curl. Setelah dipastikan berjalan normal, container dihentikan dan dihapus kembali tanpa menghapus volume datanya.
+
+![](screenshots/05-terminal-manual-docker.png)
+
+## Bagian 3. Konfigurasi Jenkins dan Kredensial GitHub PAT
+
+Container jenkins-server dijalankan pada jaringan jembatan jenkins-net dengan memetakan port 8080 serta memasang socket Docker host (/var/run/docker.sock) dan binary Docker CLI agar pipeline di dalam Jenkins dapat menjalankan perintah build dan run container di mesin host.
+
+Untuk keperluan autentikasi pengambilan kode dari GitHub, modul menganjurkan penggunaan Fine-grained Personal Access Token (PAT) dengan hak akses read-only pada bagian Contents dan Metadata. Pada pengerjaan di lingkungan praktikum ini, kredensial diisi menggunakan token dari sesi GitHub CLI lokal dan disimpan ke menu Manage Jenkins, Credentials, System, Global credentials dengan tipe Username with password dan ID github-pat-readonly. Token disimpan sebagai secret di Jenkins sehingga nilainya tidak pernah tertulis di dalam kode repositori maupun log build.
+
+![](screenshots/07-jenkins-credentials.png)
+
+## Bagian 4. Kendala yang Ditemukan (Troubleshooting) dan Perbaikannya
+
+Ketika menjalankan container jenkins-server dan mencoba eksekusi Build #1 untuk pertama kalinya, ditemukan beberapa kendala pada lingkungan container Jenkins:
+
+1. Kendala pertama adalah pesan permission denied saat user jenkins di dalam container mengakses /var/run/docker.sock. Hal ini terjadi karena file socket Docker di host dimiliki oleh grup dengan GID 973, sedangkan user jenkins belum terdaftar di grup tersebut. Perbaikannya dilakukan dengan membuat grup ber-GID 973 di dalam container jenkins-server dan memasukkan user jenkins ke grup tersebut, lalu melakukan restart container.
+2. Kendala kedua adalah gagalnya Build #1 pada Stage 2 dengan pesan python3: not found (exit code 127) karena image resmi jenkins/jenkins:lts-jdk17 hanya menyediakan runtime Java secara bawaan. Perbaikannya dilakukan dengan menginstal paket python3 di dalam container jenkins-server sebagai user root.
+3. Penyesuaian ketiga dilakukan untuk akses health check ke alamat localhost:5000 dari dalam container jenkins-server. Karena jenkins-server berjalan di dalam jaringan container tersendiri, akses localhost:5000 di dalam container mengarah ke dirinya sendiri dan bukan ke port 5000 milik host. Untuk mengatasinya dipasang paket socat di dalam container jenkins-server guna meneruskan trafik lokal port 5000 ke alamat gateway Docker host (172.23.0.1:5000).
+4. Kendala keempat sempat muncul saat percobaan pemicuan webhook pertama kali, di mana proses git fetch di dalam container sempat gagal melakukan resolusi nama domain github.com. Masalah ini diatasi dengan menambahkan pencatatan alamat IP github.com pada file /etc/hosts di dalam container jenkins-server, kemudian mengirim ulang (redeliver) event webhook dari halaman GitHub.
+
+Seluruh proses pembuatan container jenkins-server, kemunculan pesan error awal, langkah perbaikan, hingga verifikasi akhir akses Python dan Docker di dalam container ditunjukkan pada tangkapan layar terminal berikut:
+
+![](screenshots/06-terminal-jenkins-setup-troubleshooting.png)
+
+## Bagian 5. Konfigurasi Tunnel ngrok dan Pengujian GitHub Webhook
+
+Agar GitHub dapat mengirim notifikasi push ke server Jenkins yang berjalan di komputer lokal, dijalankan program ngrok pada port 8080. Layanan ngrok memberikan alamat publik HTTPS yaitu https://unlocated-waylon-potently.ngrok-free.dev yang meneruskan trafik ke http://localhost:8080. Alamat tersebut kemudian didaftarkan pada menu Settings, Webhooks di repositori GitHub dengan path /github-webhook/, format payload application/json, dan pemicu pada event push. Pada konfigurasi job python-crud-api-pipeline di Jenkins, opsi GitHub hook trigger for GITScm polling juga diaktifkan.
+
+Selanjutnya dilakukan perubahan pada file README.md, lalu dijalankan perintah git add, git commit, dan git push ke branch main dari terminal:
+
+![](screenshots/08-terminal-ngrok-git-push.png)
+
+Sesaat setelah perintah git push selesai, GitHub mengirimkan request HTTP POST ke endpoint /github-webhook/ melalui tunnel ngrok dan Jenkins langsung menjalankan Build #3 secara otomatis tanpa menekan tombol Build Now. Hasil eksekusi seluruh 5 tahap pada tampilan Stage View Jenkins terlihat berhasil (hijau) seperti pada gambar berikut:
+
+![](screenshots/09-jenkins-pipeline-success.png)
+
+Pada halaman Console Output Build #3 terlihat keterangan Started by GitHub push by fhanyuh, proses pembuatan tag image menggunakan nomor build dan commit SHA (python-crud-api:sha-5b00231), proses deployment container baru, hingga hasil akhir Finished: SUCCESS:
+
+![](screenshots/10-jenkins-console-output.png)
+
+Bukti pengiriman payload webhook dari GitHub yang diterima dengan kode status HTTP 200 OK juga tercatat pada halaman Recent Deliveries dan inspeksi trafik seperti berikut:
+
+![](screenshots/11-github-webhook-deliveries.png)
+
+## Bagian 6. Pengujian Endpoint CRUD, Fitur Tambahan, dan Persistensi Data
 
 ### 6.1 Matriks Pengujian Endpoint REST API
 
-Seluruh skenario uji pada Bagian 10.1 modul beserta endpoint tambahan Tugas D diuji terhadap container `production-api-container` (`cicd/logs/09-endpoint-matrix-test.log`):
+Setelah container production-api-container berjalan dari hasil deployment otomatis Jenkins, dilakukan pengujian menyeluruh terhadap seluruh endpoint CRUD dasar maupun fitur tambahan Tugas D menggunakan perintah curl di terminal. Ringkasan hasil pengujiannya disajikan pada tabel berikut:
 
-| Kasus Uji | Perintah / Request | Status HTTP | Respons JSON Aktual |
+| Skenario Uji | Metode dan Endpoint | Status HTTP | Respons JSON |
 |---|---|---|---|
-| Health Check | `GET /health` | `200 OK` | `{"status": "active", "service": "Backend API"}` |
-| Read Kosong | `GET /messages` | `200 OK` | `{"messages": [], "total": 0}` |
-| Create Pesan 1 | `POST /messages` (`"Data praktikum CI/CD NIM 101012300238 - pesan 1"`) | `201 Created` | `{"status": "created", "message": {"message": "...", "created_at": "2026-10-29T14:20:33.903698+00:00"}}` |
-| Create Pesan 2 | `POST /messages` (`"Data persistensi volume Docker - pesan 2"`) | `201 Created` | `{"status": "created", "message": {"message": "...", "created_at": "2026-10-29T14:20:33.925360+00:00"}}` |
-| Input Kosong | `POST /messages` (`{"message": "   "}`) | `400 Bad Request` | `{"error": "message must not be empty"}` |
-| Detail per Indeks (Tugas D) | `GET /messages/0` | `200 OK` | `{"index": 0, "message": {"message": "Data praktikum CI/CD NIM 101012300238 - pesan 1", ...}}` |
-| Filter Query (Tugas D) | `GET /messages?q=persistensi` | `200 OK` | `{"messages": [{"message": "Data persistensi volume Docker - pesan 2", ...}], "total": 1, "query": "persistensi"}` |
-| Delete Valid | `DELETE /messages?index=2` | `200 OK` | `{"status": "deleted", "removed": {"message": "Pesan sementara untuk uji delete", ...}}` |
-| Delete Indeks Tidak Ada | `DELETE /messages?index=999` | `404 Not Found` | `{"error": "Message not found"}` |
+| Health Check | GET /health | 200 OK | {"status": "active", "service": "Backend API"} |
+| Baca Data Awal (Kosong) | GET /messages | 200 OK | {"messages": [], "total": 0} |
+| Tambah Pesan Pertama | POST /messages | 201 Created | {"status": "created", "message": {"message": "Data praktikum CI/CD NIM 101012300238 - pesan 1", ...}} |
+| Tambah Pesan Kedua | POST /messages | 201 Created | {"status": "created", "message": {"message": "Data persistensi volume Docker - pesan 2", ...}} |
+| Validasi Pesan Kosong | POST /messages | 400 Bad Request | {"error": "message must not be empty"} |
+| Detail Pesan per Indeks | GET /messages/0 | 200 OK | {"index": 0, "message": {"message": "Data praktikum CI/CD NIM 101012300238 - pesan 1", ...}} |
+| Filter Kata Kunci (?q=) | GET /messages?q=persistensi | 200 OK | {"messages": [{"message": "Data persistensi volume Docker - pesan 2", ...}], "total": 1, "query": "persistensi"} |
+| Hapus Pesan Valid | DELETE /messages?index=2 | 200 OK | {"status": "deleted", "removed": {"message": "Pesan sementara untuk uji delete", ...}} |
+| Hapus Indeks Tidak Ada | DELETE /messages?index=999 | 404 Not Found | {"error": "Message not found"} |
 
-### Screenshot 4 — Pengujian Matriks Endpoint dan Fitur Tugas D di Terminal
+Berikut adalah tangkapan layar terminal saat menjalankan seluruh pengujian matriks endpoint di atas:
 
-![](screenshots/05-terminal-crud-matrix.png)
+![](screenshots/12-terminal-crud-matrix.png)
 
-### 6.2 Pembuktian Persistensi Data Lintas Redeploy (Tugas C)
+### 6.2 Pengujian Persistensi Data Lintas Redeploy
 
-Untuk membuktikan bahwa data tidak hilang ketika container lama dihentikan, dihapus, dan diganti oleh container baru, dilakukan pengujian lintas deployment dari **Build #3** ke **Build #4** (`cicd/logs/10-persistence-proof.log`):
+Untuk membuktikan bahwa data pesan tetap tersimpan walaupun container lama dihentikan dan dihapus saat proses deployment baru, dilakukan pengujian perbandingan antara kondisi sebelum redeploy (Build #3) dan sesudah redeploy (Build #4):
 
-1. **Sebelum Redeploy (Build #3)**: Container aktif memiliki ID `1c8762cf720d` dan menyimpan 2 pesan pada `/var/lib/backend_data/messages.json` dengan timestamp `2026-10-29T14:20:33.903698+00:00` dan `2026-10-29T14:20:33.925360+00:00`.
-2. **Eksekusi Redeploy (Build #4)**: Pipeline Jenkins mengeksekusi `docker stop production-api-container`, `docker rm production-api-container`, dan menjalankan container baru dengan opsi `-v production-api-data:/var/lib/backend_data`.
-3. **Sesudah Redeploy (Build #4)**: Container baru berjalan dengan ID berbeda (`1a6bc172bfc6`, berstatus `Up (healthy)`), dan pemanggilan `GET /messages` tetap mengembalikan kedua pesan beserta timestamp asli tanpa kehilangan data.
+1. Sebelum redeploy (Build #3), container production-api-container memiliki ID 1c8762cf720d dan menyimpan dua pesan di dalam file /var/lib/backend_data/messages.json.
+2. Ketika pipeline Build #4 dijalankan, Stage 4 mengeksekusi perintah docker stop dan docker rm terhadap container lama, kemudian membuat container baru dari image terbaru dengan tetap memasang volume production-api-data ke direktori /var/lib/backend_data.
+3. Sesudah redeploy selesai, container aktif berganti ID menjadi 1a6bc172bfc6 dengan status Up (healthy). Saat endpoint GET /messages dipanggil kembali, kedua pesan sebelumnya beserta waktu pembuatannya (created_at) masih tersimpan utuh.
 
-**Perbedaan Lifecycle Container dan Docker Named Volume**:
+Hal ini membuktikan perbedaan siklus hidup antara container dan Docker named volume. Lapisan penyimpanan internal container bersifat sementara dan langsung hilang ketika perintah docker rm dijalankan. Sebaliknya, Docker named volume (production-api-data) disimpan secara terpisah oleh Docker Engine di mesin host sehingga datanya tetap bertahan dan dapat langsung digunakan kembali oleh container baru.
 
-- **Container** memiliki *writable layer* yang bersifat *ephemeral* (sementara) dan terikat langsung pada siklus hidup container. Ketika `docker rm` dijalankan oleh pipeline saat redeploy, seluruh lapisan tulis milik container lama ikut terhapus.
-- **Docker Named Volume (`production-api-data`)** dikelola secara terpisah oleh Docker Engine pada direktori host (`/var/lib/docker/volumes/production-api-data/_data`) dan tidak bergantung pada siklus hidup container mana pun. Saat container lama dihapus dan container baru dipasang (*mount*) ke volume yang sama pada `/var/lib/backend_data`, berkas `messages.json` tetap utuh dan langsung terbaca oleh container baru.
+![](screenshots/13-terminal-persistence-redeploy.png)
 
-### Screenshot 5 — Bukti Persistensi Data Lintas Redeploy dan Tag Image SHA
+## Bagian 7. Jawaban Pertanyaan Analisis
 
-![](screenshots/06-terminal-persistence-redeploy.png)
+1. **Jelaskan urutan peristiwa dari git push hingga container baru berjalan.**  
+   Saat perintah git push origin main dijalankan dari laptop, kode terbaru dikirim ke repositori GitHub. GitHub kemudian mendeteksi adanya event push dan mengirimkan request HTTP POST berisi informasi commit ke alamat webhook ngrok (https://unlocated-waylon-potently.ngrok-free.dev/github-webhook/). Layanan ngrok meneruskan paket tersebut ke server Jenkins lokal pada port 8080. Jenkins menerima pemicu tersebut dan otomatis memulai eksekusi job python-crud-api-pipeline. Di dalam pipeline, Jenkins mengambil kode terbaru dari GitHub menggunakan kredensial PAT (Stage 1), memeriksa sintaks file app.py menggunakan py_compile (Stage 2), lalu membangun image Docker baru serta memberikan tag nomor build, commit SHA, dan latest (Stage 3). Selanjutnya Jenkins menghentikan dan menghapus container lama, memastikan volume production-api-data tersedia, serta menjalankan container baru pada port 5000 dengan memasang volume tersebut (Stage 4). Terakhir, Jenkins menguji endpoint /health melalui curl untuk memastikan layanan baru sudah aktif dan merespons HTTP 200 (Stage 5).
 
-## Bagian 7 — Jawaban Pertanyaan Analisis
+2. **Apa perbedaan PAT, webhook secret, dan ngrok authtoken?**  
+   Personal Access Token (PAT) adalah token autentikasi pengganti password akun GitHub yang dipakai oleh Jenkins ketika mengambil (checkout/fetch) kode sumber dari repositori. Webhook secret adalah kunci rahasia yang dipasang di sisi GitHub dan Jenkins untuk menandatangani payload webhook dengan algoritma HMAC agar Jenkins bisa memastikan bahwa request webhook benar-benar berasal dari GitHub. Sementara itu, ngrok authtoken adalah token identitas akun pengguna untuk menghubungkan aplikasi klien ngrok di komputer lokal dengan layanan server tunnel ngrok.
 
-1. **Jelaskan urutan peristiwa dari `git push` hingga container baru berjalan.**
-    - Pengembang menjalankan `git push origin main` dari laptop ke repositori GitHub.
-    - GitHub mendeteksi event `push` dan mengirimkan request HTTP POST berisi payload JSON ke URL webhook publik ngrok (`https://unlocated-waylon-potently.ngrok-free.dev/github-webhook/`).
-    - Agen ngrok meneruskan request tersebut ke server lokal Jenkins pada `http://localhost:8080/github-webhook/`.
-    - Plugin GitHub pada Jenkins menerima notifikasi, mencocokkan repositori dengan job `python-crud-api-pipeline` yang mengaktifkan *GitHub hook trigger for GITScm polling*, lalu memicu build baru secara otomatis.
-    - Jenkins melakukan checkout `Jenkinsfile` dan kode sumber terbaru dari branch `main` menggunakan kredensial `github-pat-readonly` (Stage 1), memvalidasi sintaks Python dengan `python3 -m py_compile app.py` (Stage 2), serta membangun image Docker baru dan memberi tag `${BUILD_NUMBER}`, `sha-${GIT_SHA}`, dan `latest` (Stage 3).
-    - Pada Stage 4, Jenkins menghentikan dan menghapus container lama (`production-api-container`), memastikan volume `production-api-data` tersedia, lalu menjalankan container baru dari image hasil build dengan memetakan port `5000:5000` dan memasang volume `production-api-data:/var/lib/backend_data`.
-    - Pada Stage 5, Jenkins menunggu 3 detik lalu memanggil `curl -fsS http://localhost:5000/health` untuk memastikan layanan merespons HTTP 200 sebelum menandai pipeline `SUCCESS`.
+3. **Mengapa PAT read-only cukup untuk checkout source code, tetapi tidak cukup untuk push kembali ke repository?**  
+   Karena proses checkout atau git fetch di Jenkins hanya membaca dan mengunduh kode serta riwayat commit dari GitHub tanpa mengubah isi repositori, sehingga izin baca (Contents: Read-only dan Metadata: Read-only) sudah memadai. Sebaliknya, perintah git push membutuhkan izin tulis (Read and write) karena melakukan penambahan objek commit atau perubahan referensi branch di server GitHub. Penggunaan izin read-only lebih aman karena meminimalkan risiko jika token pada server CI bocor.
 
-2. **Apa perbedaan PAT, webhook secret, dan ngrok authtoken?**
-    - **GitHub Personal Access Token (PAT)**: Kredensial autentikasi (pengganti password Git) yang digunakan oleh Jenkins saat menarik (*checkout/fetch*) kode sumber dari repositori GitHub melalui HTTPS.
-    - **Webhook Secret**: Kunci rahasia bersama (*shared secret*) antara GitHub dan Jenkins untuk menandatangani payload webhook menggunakan HMAC (`X-Hub-Signature-256`), sehingga Jenkins dapat memverifikasi bahwa payload HTTP POST benar-benar berasal dari GitHub dan bukan dari pihak ketiga.
-    - **ngrok Authtoken**: Token autentikasi akun untuk mengidentifikasi agen CLI ngrok ke layanan cloud ngrok saat membuat tunnel publik.
+4. **Apa risiko memasang Docker socket host (/var/run/docker.sock) ke container Jenkins?**  
+   File /var/run/docker.sock merupakan jalur komunikasi langsung ke layanan Docker daemon di mesin host yang berjalan dengan hak akses root. Jika container Jenkins memiliki akses penuh ke socket tersebut, maka proses atau skrip di dalam Jenkins dapat menjalankan container baru dengan hak akses penuh (privileged) atau melakukan mount seluruh isi disk host ke dalam container. Akibatnya, siapa pun yang berhasil mengambil alih akses Jenkins pada dasarnya juga bisa mendapatkan akses setara root di komputer host.
 
-3. **Mengapa PAT read-only cukup untuk checkout source code, tetapi tidak cukup untuk push kembali ke repository?**
-    - Proses *checkout* (`git fetch` / `git clone`) hanya membaca objek Git dan metadata dari repositori, sehingga izin `Contents: Read-only` dan `Metadata: Read-only` sudah mencukupi. Sebaliknya, operasi `git push` atau pembuatan tag/release mengubah isi repositori di sisi server GitHub sehingga memerlukan izin tulis (`Contents: Read and write`). Memberikan akses read-only ke Jenkins membatasi dampak jika kredensial CI bocor.
+5. **Mengapa URL ngrok yang berubah dapat memutus integrasi webhook?**  
+   Pada akun gratis ngrok, setiap kali sesi perintah ngrok http 8080 dimatikan lalu dijalankan ulang, alamat domain acak yang diberikan akan ikut berubah. Karena pengaturan Payload URL pada menu Webhooks di GitHub tidak berubah secara otomatis, GitHub masih akan mengirim notifikasi push ke alamat domain ngrok yang lama. Akibatnya pengiriman webhook akan gagal sampai alamat URL yang baru diperbarui kembali di pengaturan GitHub.
 
-4. **Apa risiko memasang Docker socket host (`/var/run/docker.sock`) ke container Jenkins?**
-    - Socket `/var/run/docker.sock` memberikan akses penuh ke API Docker daemon pada mesin host yang berjalan dengan hak akses `root`. Siapa pun yang dapat menjalankan job atau skrip di dalam container Jenkins dapat membuat container baru dengan opsi `--privileged` atau melakukan *bind-mount* direktori root host (`-v /:/host`), yang setara dengan memperoleh akses `root` penuh atas sistem operasi host. Oleh karena itu pola ini hanya layak untuk lingkungan lab tunggal yang terpercaya.
+6. **Mengapa data pada named volume bertahan setelah container dihapus?**  
+   Karena siklus hidup named volume dikelola secara terpisah oleh Docker Engine di luar ruang penyimpanan internal container. Ketika perintah docker rm dijalankan, Docker hanya menghapus lapisan tulis sementara milik container yang bersangkutan, sedangkan isi direktori dari volume production-api-data pada sistem operasi host tetap disimpan sampai volume tersebut dihapus secara sengaja dengan perintah docker volume rm.
 
-5. **Mengapa URL ngrok yang berubah dapat memutus integrasi webhook?**
-    - Pada paket gratis ngrok, setiap kali proses agen `ngrok http 8080` dihentikan dan dijalankan ulang, ngrok memberikan subdomain acak yang baru. Karena konfigurasi Payload URL pada GitHub Webhook bersifat statis, GitHub akan tetap mengirim event `push` ke domain ngrok lama yang sudah tidak aktif sehingga pengiriman webhook gagal hingga Payload URL diperbarui di pengaturan GitHub.
+7. **Apa perbedaan CI dan CD pada pipeline ini?**  
+   Bagian Continuous Integration (CI) berada pada Stage 1 sampai Stage 3 (Checkout Code, Code Syntax Verification, dan Build Docker Image), yang berfokus pada penggabungan perubahan kode dari repositori, pemeriksaan kesalahan sintaks Python, dan pembuktian bahwa aplikasi berhasil dibungkus menjadi image Docker yang siap pakai. Sedangkan bagian Continuous Deployment (CD) berada pada Stage 4 dan Stage 5 (Automated Deployment dan Health Check), yang bertugas menerapkan image terbaru tersebut menjadi container aktif di lingkungan produksi serta memastikan layanan dapat diakses dengan normal.
 
-6. **Mengapa data pada named volume bertahan setelah container dihapus?**
-    - Karena data di dalam named volume (`production-api-data`) disimpan di direktori khusus pada filesystem host (`/var/lib/docker/volumes/production-api-data/_data`) yang terpisah dari *union filesystem* container. Perintah `docker rm` hanya menghapus lapisan tulis milik container, sedangkan named volume tetap dipertahankan oleh Docker Engine sampai dihapus secara eksplisit menggunakan `docker volume rm`.
-
-7. **Apa perbedaan CI dan CD pada pipeline ini?**
-    - **Continuous Integration (CI)** mencakup **Stage 1 hingga Stage 3** (`Checkout Code`, `Code Syntax Verification`, dan `Build Docker Image`), yaitu proses mengintegrasikan perubahan kode dari GitHub, menguji validitas sintaks program, dan memastikan aplikasi dapat dikemas menjadi artefak image Docker yang konsisten.
-    - **Continuous Deployment (CD)** mencakup **Stage 4 dan Stage 5** (`Automated Deployment` dan `Health Check`), yaitu proses memperbarui container produksi secara otomatis menggunakan image hasil build dan memverifikasi bahwa layanan hidup serta siap melayani trafik di port `5000`.
-
-8. **Apa yang harus dilakukan jika tahap deploy sukses tetapi health check gagal?**
-    - Perintah `docker run -d` pada tahap deploy hanya memastikan proses container berhasil dibuat di background, tetapi belum menjamin aplikasi di dalamnya berhasil mengikat port atau bebas dari *runtime exception*. Jika Stage 5 (`Health Check`) gagal, langkah yang harus dilakukan adalah:
-        1. Memeriksa status container (`docker ps -a --filter name=production-api-container`) untuk melihat apakah container keluar (*Exited*) atau masih berjalan.
-        2. Memeriksa log aplikasi (`docker logs production-api-container`) untuk menemukan penyebab kegagalan seperti error inisialisasi Python, kesalahan path volume, atau konflik port.
-        3. Melakukan *rollback* ke image versi stabil sebelumnya menggunakan tag nomor build atau commit SHA sebelumnya (misalnya `docker run ... python-crud-api:sha-79f4194`) agar layanan kembali aktif sembari memperbaiki bug pada kode sumber.
+8. **Apa yang harus dilakukan jika tahap deploy sukses tetapi health check gagal?**  
+   Tahap deploy yang berhasil hanya menandakan perintah docker run -d sukses membuat container di latar belakang, namun aplikasi Python di dalamnya bisa saja langsung berhenti karena terjadi error saat runtime. Langkah penanganannya adalah memeriksa status container dengan docker ps -a dan membaca pesan kesalahan pada log aplikasi menggunakan perintah docker logs production-api-container untuk mengetahui penyebab utamanya, misalnya kesalahan kode, port yang bentrok, atau masalah izin direktori. Sambil memperbaiki kode sumber, layanan dapat segera dipulihkan (rollback) dengan menjalankan container dari tag image versi sebelumnya yang sudah terbukti berjalan baik, seperti menggunakan tag nomor build lama atau tag commit SHA sebelumnya.
