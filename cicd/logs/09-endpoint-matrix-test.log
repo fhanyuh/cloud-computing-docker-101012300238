@@ -1,0 +1,133 @@
+=== Kasus Uji 1: Health Check (GET /health) ===
+$ curl -i http://localhost:5000/health
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 46
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "active", "service": "Backend API"}
+
+=== Kasus Uji 2: Read Kosong (GET /messages) ===
+$ curl -s http://localhost:5000/messages
+{"messages": [], "total": 0}
+
+=== Kasus Uji 3: Create Pesan Valid (POST /messages) ===
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"Data praktikum CI/CD NIM 101012300238 - pesan 1"}'
+HTTP/1.0 201 Created
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 146
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "created", "message": {"message": "Data praktikum CI/CD NIM 101012300238 - pesan 1", "created_at": "2026-10-29T14:20:33.903698+00:00"}}
+
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"Data persistensi volume Docker - pesan 2"}'
+HTTP/1.0 201 Created
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 139
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "created", "message": {"message": "Data persistensi volume Docker - pesan 2", "created_at": "2026-10-29T14:20:33.925360+00:00"}}
+
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"Pesan sementara untuk uji delete"}'
+HTTP/1.0 201 Created
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 131
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "created", "message": {"message": "Pesan sementara untuk uji delete", "created_at": "2026-10-29T14:20:33.946928+00:00"}}
+
+=== Kasus Uji 4: Validasi Input Kosong (POST /messages) ===
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"   "}'
+HTTP/1.0 400 Bad Request
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 38
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"error": "message must not be empty"}
+
+=== Kasus Uji 5: Pengembangan Tugas D — Detail Indeks & Filter Query ===
+$ curl -i http://localhost:5000/messages/0
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:33 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 137
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"index": 0, "message": {"message": "Data praktikum CI/CD NIM 101012300238 - pesan 1", "created_at": "2026-10-29T14:20:33.903698+00:00"}}
+
+$ curl -i "http://localhost:5000/messages?q=persistensi"
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:34 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 157
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"messages": [{"message": "Data persistensi volume Docker - pesan 2", "created_at": "2026-10-29T14:20:33.925360+00:00"}], "total": 1, "query": "persistensi"}
+
+=== Kasus Uji 6: Delete Valid (DELETE /messages?index=2) ===
+$ curl -i -X DELETE "http://localhost:5000/messages?index=2"
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:34 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 131
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "deleted", "removed": {"message": "Pesan sementara untuk uji delete", "created_at": "2026-10-29T14:20:33.946928+00:00"}}
+
+=== Kasus Uji 7: Delete Index Tidak Ada (DELETE /messages?index=999) ===
+$ curl -i -X DELETE "http://localhost:5000/messages?index=999"
+HTTP/1.0 404 Not Found
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:20:34 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 30
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"error": "Message not found"}
+
+=== Verifikasi Daftar Pesan Aktif (GET /messages) ===
+$ curl -s http://localhost:5000/messages | python3 -m json.tool
+{
+    "messages": [
+        {
+            "message": "Data praktikum CI/CD NIM 101012300238 - pesan 1",
+            "created_at": "2026-10-29T14:20:33.903698+00:00"
+        },
+        {
+            "message": "Data persistensi volume Docker - pesan 2",
+            "created_at": "2026-10-29T14:20:33.925360+00:00"
+        }
+    ],
+    "total": 2
+}

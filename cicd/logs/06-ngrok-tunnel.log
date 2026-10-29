@@ -1,0 +1,55 @@
+$ ngrok version
+ngrok version 3.39.13
+
+$ curl -s http://127.0.0.1:4040/api/tunnels | python3 -m json.tool
+{
+    "tunnels": [
+        {
+            "name": "command_line",
+            "ID": "810dcb888cb611064491171dbd72176b",
+            "uri": "/api/tunnels/command_line",
+            "public_url": "https://unlocated-waylon-potently.ngrok-free.dev",
+            "proto": "https",
+            "config": {
+                "addr": "http://localhost:8080",
+                "inspect": true
+            },
+            "metrics": {
+                "conns": {
+                    "count": 0,
+                    "gauge": 0,
+                    "rate1": 0,
+                    "rate5": 0,
+                    "rate15": 0,
+                    "p50": 0,
+                    "p90": 0,
+                    "p95": 0,
+                    "p99": 0
+                },
+                "http": {
+                    "count": 0,
+                    "rate1": 0,
+                    "rate5": 0,
+                    "rate15": 0,
+                    "p50": 0,
+                    "p90": 0,
+                    "p95": 0,
+                    "p99": 0
+                }
+            }
+        }
+    ],
+    "uri": "/api/tunnels"
+}
+
+$ curl -I -s https://unlocated-waylon-potently.ngrok-free.dev/login | head -n 10
+HTTP/2 200 
+cache-control: no-cache,no-store,must-revalidate
+content-security-policy-report-only: base-uri 'none'; default-src 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data:; script-src 'report-sample' 'self' usage.jenkins.io; style-src 'report-sample' 'self' 'unsafe-inline'; report-to content-security-policy; report-uri https://unlocated-waylon-potently.ngrok-free.dev/content-security-policy-reporting-endpoint/juIYcMSQ7PZ81BPof2zxDOKTQOFnJlMoZnF2ygL5kdY=:YW5vbnltb3Vz:aHVkc29uLm1vZGVsLkh1ZHNvbg==:bG9naW4=
+content-type: text/html;charset=utf-8
+date: Thu, 29 Oct 2026 14:18:07 GMT
+expires: Thu, 01 Jan 1970 00:00:00 GMT
+ngrok-agent-ips: 118.99.107.220
+reporting-endpoints: content-security-policy: https://unlocated-waylon-potently.ngrok-free.dev/content-security-policy-reporting-endpoint/juIYcMSQ7PZ81BPof2zxDOKTQOFnJlMoZnF2ygL5kdY=:YW5vbnltb3Vz:aHVkc29uLm1vZGVsLkh1ZHNvbg==:bG9naW4=
+server: Jetty(12.1.5)
+set-cookie: JSESSIONID.31c05344=node0im7c1kg38q21gpuc225avxw46.node0; Path=/; Secure; HttpOnly; SameSite=Lax

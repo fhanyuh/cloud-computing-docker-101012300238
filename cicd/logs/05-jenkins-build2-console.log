@@ -1,0 +1,157 @@
+Started by user Rafhan Mazaya Fathurrahman
+Obtained Jenkinsfile from git https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/python-crud-api-pipeline
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/python-crud-api-pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 79f41948ee385beeac106da8e64c1d048c2354fe (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+Commit message: "feat: add Python CRUD REST API, Dockerfile, and Jenkinsfile"
+ > git rev-list --no-walk 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (1. Checkout Code)
+[Pipeline] echo
+Checking out source code from GitHub
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/python-crud-api-pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 79f41948ee385beeac106da8e64c1d048c2354fe (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+Commit message: "feat: add Python CRUD REST API, Dockerfile, and Jenkinsfile"
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (2. Code Syntax Verification)
+[Pipeline] sh
++ python3 -m py_compile app.py
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (3. Build Docker Image)
+[Pipeline] sh
++ git rev-parse --short HEAD
++ GIT_SHA=79f4194
++ docker build -t python-crud-api:2 .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  9.216kB
+Step 1/7 : FROM python:3.11-slim
+3.11-slim: Pulling from library/python
+Digest: sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
+Status: Downloaded newer image for python:3.11-slim
+ ---> 673719e071ec
+Step 2/7 : ENV PYTHONUNBUFFERED=1
+ ---> Running in 9b58c1d1f523
+ ---> Removed intermediate container 9b58c1d1f523
+ ---> 2937b3e6974c
+Step 3/7 : WORKDIR /app
+ ---> Running in f493baeffe5d
+ ---> Removed intermediate container f493baeffe5d
+ ---> 8c5eece8048f
+Step 4/7 : COPY app.py .
+ ---> 98c2231a070b
+Step 5/7 : EXPOSE 5000
+ ---> Running in cf82c378f717
+ ---> Removed intermediate container cf82c378f717
+ ---> c8ca4ed59ed2
+Step 6/7 : HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)" || exit 1
+ ---> Running in 995e7fce080c
+ ---> Removed intermediate container 995e7fce080c
+ ---> f9bfbd4154eb
+Step 7/7 : CMD ["python", "app.py"]
+ ---> Running in aa79aebc98de
+ ---> Removed intermediate container aa79aebc98de
+ ---> a35d31cbb24e
+Successfully built a35d31cbb24e
+Successfully tagged python-crud-api:2
++ docker tag python-crud-api:2 python-crud-api:sha-79f4194
++ docker tag python-crud-api:2 python-crud-api:latest
++ docker images python-crud-api
+IMAGE                         ID             DISK USAGE   CONTENT SIZE   EXTRA
+python-crud-api:2             a35d31cbb24e        187MB         45.6MB        
+python-crud-api:latest        a35d31cbb24e        187MB         45.6MB        
+python-crud-api:manual        5505d872f06f        187MB         45.6MB        
+python-crud-api:sha-79f4194   a35d31cbb24e        187MB         45.6MB        
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (4. Automated Deployment)
+[Pipeline] sh
++ docker stop production-api-container
+Error response from daemon: No such container: production-api-container
++ true
++ docker rm production-api-container
+Error response from daemon: No such container: production-api-container
++ true
++ docker volume create production-api-data
+production-api-data
++ docker run -d --name production-api-container -p 5000:5000 -v production-api-data:/var/lib/backend_data python-crud-api:latest
+f9d01c11f731cae22540be240e1884b4ea42207035ba77df4a1e92359a1c9842
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (5. Health Check)
+[Pipeline] sh
++ sleep 3
+[Pipeline] sh
++ curl -fsS http://localhost:5000/health
+{"status": "active", "service": "Backend API"}
+[Pipeline] sh
++ docker ps --filter name=production-api-container
+CONTAINER ID   IMAGE                    COMMAND           CREATED         STATUS                            PORTS                                         NAMES
+f9d01c11f731   python-crud-api:latest   "python app.py"   4 seconds ago   Up 4 seconds (health: starting)   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   production-api-container
+[Pipeline] sh
++ docker logs --tail 20 production-api-container
+Backend API listening on 0.0.0.0:5000
+[29/Oct/2026 14:13:11] "GET /health HTTP/1.1" 200 -
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] echo
+Pipeline completed successfully.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+Finished: SUCCESS

@@ -1,0 +1,151 @@
+Started by GitHub push by fhanyuh
+Obtained Jenkinsfile from git https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/python-crud-api-pipeline
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/python-crud-api-pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 5b00231f0defbf2cb33d579cb708b81c3159c203 (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 5b00231f0defbf2cb33d579cb708b81c3159c203 # timeout=10
+Commit message: "test: trigger GitHub webhook and update README"
+ > git rev-list --no-walk 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (1. Checkout Code)
+[Pipeline] echo
+Checking out source code from GitHub
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/python-crud-api-pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 5b00231f0defbf2cb33d579cb708b81c3159c203 (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 5b00231f0defbf2cb33d579cb708b81c3159c203 # timeout=10
+Commit message: "test: trigger GitHub webhook and update README"
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (2. Code Syntax Verification)
+[Pipeline] sh
++ python3 -m py_compile app.py
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (3. Build Docker Image)
+[Pipeline] sh
++ git rev-parse --short HEAD
++ GIT_SHA=5b00231
++ docker build -t python-crud-api:3 .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  9.216kB
+Step 1/7 : FROM python:3.11-slim
+ ---> 673719e071ec
+Step 2/7 : ENV PYTHONUNBUFFERED=1
+ ---> Using cache
+ ---> 2937b3e6974c
+Step 3/7 : WORKDIR /app
+ ---> Using cache
+ ---> 8c5eece8048f
+Step 4/7 : COPY app.py .
+ ---> Using cache
+ ---> 98c2231a070b
+Step 5/7 : EXPOSE 5000
+ ---> Using cache
+ ---> c8ca4ed59ed2
+Step 6/7 : HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)" || exit 1
+ ---> Using cache
+ ---> f9bfbd4154eb
+Step 7/7 : CMD ["python", "app.py"]
+ ---> Using cache
+ ---> a35d31cbb24e
+Successfully built a35d31cbb24e
+Successfully tagged python-crud-api:3
++ docker tag python-crud-api:3 python-crud-api:sha-5b00231
++ docker tag python-crud-api:3 python-crud-api:latest
++ docker images python-crud-api
+IMAGE                         ID             DISK USAGE   CONTENT SIZE   EXTRA
+python-crud-api:2             a35d31cbb24e        187MB         45.6MB   U    
+python-crud-api:3             a35d31cbb24e        187MB         45.6MB   U    
+python-crud-api:latest        a35d31cbb24e        187MB         45.6MB   U    
+python-crud-api:manual        5505d872f06f        187MB         45.6MB        
+python-crud-api:sha-5b00231   a35d31cbb24e        187MB         45.6MB   U    
+python-crud-api:sha-79f4194   a35d31cbb24e        187MB         45.6MB   U    
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (4. Automated Deployment)
+[Pipeline] sh
++ docker stop production-api-container
+production-api-container
++ docker rm production-api-container
+production-api-container
++ docker volume create production-api-data
+production-api-data
++ docker run -d --name production-api-container -p 5000:5000 -v production-api-data:/var/lib/backend_data python-crud-api:latest
+1c8762cf720daf338f3c5ccd43c60a8a259fd4e10ca2a36343a0b97a7e4eebf6
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (5. Health Check)
+[Pipeline] sh
++ sleep 3
+[Pipeline] sh
++ curl -fsS http://localhost:5000/health
+{"status": "active", "service": "Backend API"}
+[Pipeline] sh
++ docker ps --filter name=production-api-container
+CONTAINER ID   IMAGE                    COMMAND           CREATED         STATUS                   PORTS                                         NAMES
+1c8762cf720d   python-crud-api:latest   "python app.py"   6 seconds ago   Up 5 seconds (healthy)   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   production-api-container
+[Pipeline] sh
++ docker logs --tail 20 production-api-container
+Backend API listening on 0.0.0.0:5000
+[29/Oct/2026 14:19:54] "GET /health HTTP/1.1" 200 -
+[29/Oct/2026 14:19:55] "GET /health HTTP/1.1" 200 -
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] echo
+Pipeline completed successfully.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+Finished: SUCCESS

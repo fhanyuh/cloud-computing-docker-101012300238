@@ -1,0 +1,103 @@
+=== 1. Pemeriksaan Awal Docker CLI & Socket di Container Jenkins ===
+$ docker exec jenkins-server docker ps
+permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+
+=== 2. Console Output Jenkins Build #1 (Gagal) ===
+Started by user Rafhan Mazaya Fathurrahman
+Obtained Jenkinsfile from git https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/python-crud-api-pipeline
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+Cloning the remote Git repository
+Cloning repository https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git init /var/jenkins_home/workspace/python-crud-api-pipeline # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+ > git config --add remote.origin.fetch +refs/heads/*:refs/remotes/origin/* # timeout=10
+Avoid second fetch
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 79f41948ee385beeac106da8e64c1d048c2354fe (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+Commit message: "feat: add Python CRUD REST API, Dockerfile, and Jenkinsfile"
+First time build. Skipping changelog.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (1. Checkout Code)
+[Pipeline] echo
+Checking out source code from GitHub
+[Pipeline] checkout
+Selected Git installation does not exist. Using Default
+The recommended git tool is: NONE
+using credential github-pat-readonly
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/python-crud-api-pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/fhanyuh/cloud-computing-docker-101012300238.git # timeout=10
+Fetching upstream changes from https://github.com/fhanyuh/cloud-computing-docker-101012300238.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+using GIT_ASKPASS to set credentials Read-only GitHub checkout for python-crud-api
+ > git fetch --tags --force --progress -- https://github.com/fhanyuh/cloud-computing-docker-101012300238.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 79f41948ee385beeac106da8e64c1d048c2354fe (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 79f41948ee385beeac106da8e64c1d048c2354fe # timeout=10
+Commit message: "feat: add Python CRUD REST API, Dockerfile, and Jenkinsfile"
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (2. Code Syntax Verification)
+[Pipeline] sh
++ python3 -m py_compile app.py
+/var/jenkins_home/workspace/python-crud-api-pipeline@tmp/durable-5c052ac4/script.sh.copy: 1: python3: not found
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (3. Build Docker Image)
+Stage "3. Build Docker Image" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (4. Automated Deployment)
+Stage "4. Automated Deployment" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (5. Health Check)
+Stage "5. Health Check" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] echo
+Pipeline failed. Inspect Console Output.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+ERROR: script returned exit code 127
+Finished: FAILURE

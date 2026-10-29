@@ -1,0 +1,37 @@
+$ docker exec jenkins-server python3 --version
+Python 3.13.5
+
+$ docker exec jenkins-server docker version
+Client: Docker Engine - Community
+ Version:           29.7.2
+ API version:       1.55
+ Go version:        go1.26.5
+ Git commit:        a7dcaa6
+ Built:             Wed Aug  5 18:28:40 2026
+ OS/Arch:           linux/amd64
+ Context:           default
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          29.7.2
+  API version:      1.55 (minimum version 1.40)
+  Go version:       go1.26.5
+  Git commit:       6a43e3d
+  Built:            Wed Aug  5 18:28:40 2026
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          v2.3.3
+  GitCommit:        aad11006b869517fcd3009450b6f82da282e1a9b
+ runc:
+  Version:          1.4.3
+  GitCommit:        v1.4.3-0-gbb14dabe
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+
+$ docker exec jenkins-server docker ps
+CONTAINER ID   IMAGE                                         COMMAND                  CREATED         STATUS          PORTS                                                                                          NAMES
+475fed8c972b   jenkins/jenkins:lts-jdk17                     "/usr/bin/tini -- /u…"   3 minutes ago   Up 7 seconds    0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 0.0.0.0:50000->50000/tcp, [::]:50000->50000/tcp   jenkins-server
+e68ec675411d   ghcr.io/abdshomad/ishs-edge-frontend:latest   "docker-entrypoint.s…"   5 weeks ago     Up 52 minutes   0.0.0.0:3100->3100/tcp, [::]:3100->3100/tcp                                                    ishs-edge-edge-frontend-1
+1469a3f09717   ghcr.io/abdshomad/ishs-edge-backend:latest    "/opt/nvidia/nvidia_…"   5 weeks ago     Up 52 minutes   0.0.0.0:8100->8100/tcp, [::]:8100->8100/tcp                                                    ishs-edge-edge-backend-1

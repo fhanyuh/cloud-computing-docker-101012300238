@@ -1,0 +1,64 @@
+=== 1. State Sebelum Redeploy (Build #3 Aktif) ===
+$ docker ps --filter name=production-api-container
+CONTAINER ID   IMAGE                    COMMAND           CREATED              STATUS                        PORTS                                         NAMES
+1c8762cf720d   python-crud-api:latest   "python app.py"   About a minute ago   Up About a minute (healthy)   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   production-api-container
+
+$ curl -s http://localhost:5000/messages | python3 -m json.tool
+{
+    "messages": [
+        {
+            "message": "Data praktikum CI/CD NIM 101012300238 - pesan 1",
+            "created_at": "2026-10-29T14:20:33.903698+00:00"
+        },
+        {
+            "message": "Data persistensi volume Docker - pesan 2",
+            "created_at": "2026-10-29T14:20:33.925360+00:00"
+        }
+    ],
+    "total": 2
+}
+
+=== 2. State Sesudah Redeploy Otomatis melalui Jenkins (Build #4 Selesai) ===
+$ docker ps --filter name=production-api-container
+CONTAINER ID   IMAGE                    COMMAND           CREATED          STATUS                    PORTS                                         NAMES
+1a6bc172bfc6   python-crud-api:latest   "python app.py"   16 seconds ago   Up 16 seconds (healthy)   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   production-api-container
+
+$ curl -s http://localhost:5000/messages | python3 -m json.tool
+{
+    "messages": [
+        {
+            "message": "Data praktikum CI/CD NIM 101012300238 - pesan 1",
+            "created_at": "2026-10-29T14:20:33.903698+00:00"
+        },
+        {
+            "message": "Data persistensi volume Docker - pesan 2",
+            "created_at": "2026-10-29T14:20:33.925360+00:00"
+        }
+    ],
+    "total": 2
+}
+
+$ docker exec production-api-container cat /var/lib/backend_data/messages.json
+[
+  {
+    "message": "Data praktikum CI/CD NIM 101012300238 - pesan 1",
+    "created_at": "2026-10-29T14:20:33.903698+00:00"
+  },
+  {
+    "message": "Data persistensi volume Docker - pesan 2",
+    "created_at": "2026-10-29T14:20:33.925360+00:00"
+  }
+]
+
+$ docker volume inspect production-api-data
+[
+    {
+        "CreatedAt": "2026-10-29T21:08:34+07:00",
+        "Driver": "local",
+        "Labels": null,
+        "Mountpoint": "/var/lib/docker/volumes/production-api-data/_data",
+        "Name": "production-api-data",
+        "Options": null,
+        "Scope": "local"
+    }
+]

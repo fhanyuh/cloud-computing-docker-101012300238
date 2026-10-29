@@ -1,0 +1,45 @@
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"Pesan pertama dari praktikum"}'
+HTTP/1.0 201 Created
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:08:36 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 127
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "created", "message": {"message": "Pesan pertama dari praktikum", "created_at": "2026-10-29T14:08:36.881343+00:00"}}
+
+$ curl -s http://localhost:5000/messages
+{"messages": [{"message": "Pesan pertama dari praktikum", "created_at": "2026-10-29T14:08:36.881343+00:00"}], "total": 1}
+
+$ curl -i -X POST http://localhost:5000/messages -H "Content-Type: application/json" -d '{"message":"Pesan kedua"}'
+HTTP/1.0 201 Created
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:08:36 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 110
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "created", "message": {"message": "Pesan kedua", "created_at": "2026-10-29T14:08:36.923116+00:00"}}
+
+$ curl -i -X DELETE "http://localhost:5000/messages?index=0"
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.11.18
+Date: Thu, 29 Oct 2026 14:08:36 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 127
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+
+{"status": "deleted", "removed": {"message": "Pesan pertama dari praktikum", "created_at": "2026-10-29T14:08:36.881343+00:00"}}
+
+$ curl -s http://localhost:5000/messages
+{"messages": [{"message": "Pesan kedua", "created_at": "2026-10-29T14:08:36.923116+00:00"}], "total": 1}
+
+$ docker stop production-api-container && docker rm production-api-container
+production-api-container
+production-api-container
